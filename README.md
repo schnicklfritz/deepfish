@@ -1,4 +1,4 @@
-# schnicklfritz/deepfish
+# schnicklfritz/deepfish 
 
 Fish Speech S2-Pro voice cloning + DeepSeek V4-Flash chat, packaged for QuickPod.
 
