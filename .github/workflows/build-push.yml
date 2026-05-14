@@ -1,61 +1,53 @@
-name: build-push
+name: Build and Push to Docker Hub
 
 on:
-  push:                     # Trigger on every push and commit to ANY branch
-  workflow_dispatch:        # manual trigger from the Actions tab
+  push:
+    branches: ["**"]            # Triggers on every push and commit to ANY branch
+  workflow_dispatch:            # Allows you to manually click "Run workflow" in GitHub
 
 # Cancel in-flight runs when new commits land on the same branch
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  IMAGE: schnicklfritz/deepfish
-
 jobs:
-  build-push:
+  build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write     # only matters if you later switch to GHCR
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
+      # Sets up the build environment inside the GitHub Action runner
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v4
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Compute tags
+      - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE }}
+          # IMPORTANT: Change 'deepfish' to whatever you want the image to be named!
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/deepfish
           tags: |
-            # 'latest' tag on every push to your default branch (main)
             type=raw,value=latest,enable={{is_default_branch}}
-            # Tags the image with the branch name (e.g., dev, feature-x)
             type=ref,event=branch
-            # short SHA on every push (for pinning a specific build)
-            type=sha,format=short
-            # semver tags when you push v1.2.3
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-,format=short
 
+      # Builds locally on GitHub, then pushes the finished image to Docker Hub
       - name: Build and push
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
-          platforms: linux/amd64     # QuickPod GPU pods are amd64
+          platforms: linux/amd64     # QuickPod GPU pods use standard amd64 processors
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
+          cache-from: type=gha       # Uses GitHub Actions cache to speed up your builds
           cache-to: type=gha,mode=max
-          provenance: false          # smaller manifest; flip on if you want SLSA
+          provenance: false
