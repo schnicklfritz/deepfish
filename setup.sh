@@ -1,9 +1,9 @@
 #!/bin/bash
 # setup.sh — one-shot setup inside a fresh fishaudio/fish-speech:latest QuickPod
-# Launch Mode for the pod: SSH Entry (so this script controls startup, not the base entrypoint)
+# Launch Mode: SSH Entry
 # Usage:
 #   curl -sL https://raw.githubusercontent.com/schnicklfritz/deepfish/main/setup.sh | bash
-# Idempotent: kills prior service instances and re-runs cleanly.
+# Idempotent. Safe to re-run.
 
 set -u
 WORKSPACE=/workspace
@@ -11,7 +11,7 @@ REPO_RAW=https://raw.githubusercontent.com/schnicklfritz/deepfish/main
 PY=/app/.venv/bin/python
 PIP=/app/.venv/bin/pip
 
-mkdir -p "$WORKSPACE"/{references,outputs,scripts,logs,checkpoints}
+mkdir -p "$WORKSPACE"/{references,outputs,scripts,logs,checkpoints,torch_cache}
 LOG="$WORKSPACE/logs/setup.log"
 exec > >(tee -a "$LOG") 2>&1
 log() { echo "[setup $(date +%T)] $*"; }
@@ -27,6 +27,20 @@ export DO_NOT_TRACK=1
 export DISABLE_TELEMETRY=1
 
 # ---------------------------------------------------------------------
+# 0b. torch.compile cache persistence
+# Cache is GPU-architecture-specific, so segregate by sm_XX detected via nvidia-smi.
+# Default to "unknown" if detection fails.
+# ---------------------------------------------------------------------
+GPU_ARCH=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d '. ' || echo "unknown")
+[ -z "$GPU_ARCH" ] && GPU_ARCH="unknown"
+export TORCHINDUCTOR_CACHE_DIR="$WORKSPACE/torch_cache/sm_$GPU_ARCH"
+export TORCHINDUCTOR_FX_GRAPH_CACHE=1
+export TORCHINDUCTOR_AUTOGRAD_CACHE=1
+mkdir -p "$TORCHINDUCTOR_CACHE_DIR"
+log "torch.compile cache: $TORCHINDUCTOR_CACHE_DIR"
+log "  (cache is GPU-arch specific; first run on each arch pays full compile cost)"
+
+# ---------------------------------------------------------------------
 # 1. Kill any prior service instances so re-runs don't double-launch
 # ---------------------------------------------------------------------
 pkill -f "tools/run_webui.py"  2>/dev/null || true
@@ -35,7 +49,7 @@ pkill -f "scripts/chat_app.py" 2>/dev/null || true
 sleep 1
 
 # ---------------------------------------------------------------------
-# 2. Install our extra pip deps into the base image's venv
+# 2. Install extra pip deps into the base image's venv
 # ---------------------------------------------------------------------
 log "installing pip deps into /app/.venv"
 $PIP install --quiet --no-cache-dir openai requests soundfile b2
@@ -77,7 +91,22 @@ else
   fi
 fi
 
-# Symlink so scripts that expect /app/checkpoints/s2-pro find them
+# ---------------------------------------------------------------------
+# 4b. Pull torch.compile cache from B2 for this GPU arch if available
+# ---------------------------------------------------------------------
+if [ -n "${B2_KEY_ID:-}" ] && [ -n "${B2_APP_KEY:-}" ] && [ -n "${B2_BUCKET:-}" ] && \
+   b2 account authorize "$B2_KEY_ID" "$B2_APP_KEY" >/dev/null 2>&1 && \
+   [ "$GPU_ARCH" != "unknown" ]; then
+  if b2 ls "b2://$B2_BUCKET/deepfish/torch_cache/sm_$GPU_ARCH/" 2>/dev/null | grep -q .; then
+    if [ -z "$(ls -A $TORCHINDUCTOR_CACHE_DIR 2>/dev/null)" ]; then
+      log "pulling torch.compile cache (sm_$GPU_ARCH) from B2"
+      b2 sync "b2://$B2_BUCKET/deepfish/torch_cache/sm_$GPU_ARCH/" \
+              "$TORCHINDUCTOR_CACHE_DIR/" --noProgress || true
+    fi
+  fi
+fi
+
+# Symlink for code that expects /app/checkpoints/s2-pro
 mkdir -p /app/checkpoints
 rm -rf /app/checkpoints/s2-pro
 ln -s "$PERSIST" /app/checkpoints/s2-pro
@@ -109,10 +138,10 @@ nohup $PY tools/api_server.py \
 log "  api PID=$!"
 
 # ---------------------------------------------------------------------
-# 6. Wait for api (first cold start with --compile can take 3-5 min)
+# 6. Wait for api (first cold start with --compile can take 5-10 min)
 # ---------------------------------------------------------------------
-log "waiting for api on :8080 (up to 5 min)..."
-for i in {1..60}; do
+log "waiting for api on :8080 (up to 10 min on cold-cache first run)..."
+for i in {1..120}; do
   if curl -fsS http://127.0.0.1:8080/ >/dev/null 2>&1 || \
      curl -fsS http://127.0.0.1:8080/docs >/dev/null 2>&1; then
     log "  api responsive after $((i*5))s"
@@ -122,7 +151,7 @@ for i in {1..60}; do
 done
 
 # ---------------------------------------------------------------------
-# 7. Tell the user what to do next
+# 7. Next steps
 # ---------------------------------------------------------------------
 cat <<EOF
 
@@ -130,28 +159,23 @@ cat <<EOF
   SETUP DONE
 ==========================================================
 
-Services running (check logs if anything's wonky):
+Services running:
   webui      → :7860   tail -f /workspace/logs/webui.log
   api (TTS)  → :8080   tail -f /workspace/logs/api_server.log
 
-Browse:
-  webui      → http://\$PUBLIC_IPADDR:\$QUICKPOD_PORT_7860
-  chat (when running) → http://\$PUBLIC_IPADDR:\$QUICKPOD_PORT_7861
+torch.compile cache: $TORCHINDUCTOR_CACHE_DIR
+  (run sync.sh push-cache before destroying pod to save it to B2)
 
-To start the chat app (foreground, in this shell):
-
+To start the chat app:
   export DEEPSEEK_API_KEY=sk-...
-  export REFERENCE_AUDIO=/workspace/references/voice.wav
   export REFERENCE_TEXT="exact transcript of voice.wav"
   $PY /workspace/scripts/chat_app.py
 
-Or one-shot CLI:
-
-  export DEEPSEEK_API_KEY=sk-...
-  $PY /workspace/scripts/cli.py "say hello with feeling"
-
-Verify api endpoints before relying on chat_app:
+Verify api routing (chat_app expects /v1/tts):
   curl http://127.0.0.1:8080/openapi.json | python3 -m json.tool | head -40
+
+Before destroying the pod (saves cache + outputs to B2):
+  bash /workspace/scripts/sync.sh pre-destroy
 
 ==========================================================
 EOF
