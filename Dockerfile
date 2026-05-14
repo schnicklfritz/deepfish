@@ -3,6 +3,8 @@
 # Strategy: destroy pods aggressively, mirror state to Backblaze B2.
 FROM fishaudio/fish-speech:latest
 
+USER root
+
 # Privacy defaults — overridable at runtime
 ENV GRADIO_ANALYTICS_ENABLED=False \
     HF_HUB_DISABLE_TELEMETRY=1 \
@@ -43,3 +45,4 @@ RUN chmod +x /opt/deepfish/bootstrap.sh /opt/deepfish/sync.sh
 EXPOSE 7860 7861 8080
 
 CMD ["bash", "/opt/deepfish/bootstrap.sh"]
+
