@@ -15,7 +15,7 @@ ENV GRADIO_ANALYTICS_ENABLED=False \
 
 # Runtime deps: openai (DeepSeek), b2 (Backblaze sync), small utilities.
 # Single RUN layer.
-RUN pip install --no-cache-dir --root-user-action=ignore \
+RUN pip install --no-cache-dir --break-system-packages \
         openai \
         requests \
         soundfile \
