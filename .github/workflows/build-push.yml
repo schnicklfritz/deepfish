@@ -1,9 +1,7 @@
 name: build-push
 
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
+  push:                     # Trigger on every push and commit to ANY branch
   workflow_dispatch:        # manual trigger from the Actions tab
 
 # Cancel in-flight runs when new commits land on the same branch
@@ -39,8 +37,10 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            # latest on every push to main
+            # 'latest' tag on every push to your default branch (main)
             type=raw,value=latest,enable={{is_default_branch}}
+            # Tags the image with the branch name (e.g., dev, feature-x)
+            type=ref,event=branch
             # short SHA on every push (for pinning a specific build)
             type=sha,format=short
             # semver tags when you push v1.2.3
