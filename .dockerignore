@@ -1,0 +1,72 @@
+# =====================================================================
+# Anything NOT in this list IS sent to the Docker daemon as build context.
+# Keep it minimal: only the files the Dockerfile actually COPYs.
+# =====================================================================
+
+# Git / GitHub
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# Docs (not needed in image)
+README.md
+*.md
+docs/
+
+# Docker meta (not needed in image)
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+
+# Secrets — defense in depth (also in .gitignore)
+.env
+.env.*
+*.env
+secrets/
+
+# Audio — CRITICAL: never bake reference voices into a pushed image
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.ogg
+*.opus
+references/
+outputs/
+
+# Model weights — too big, downloaded at runtime
+*.pth
+*.safetensors
+*.bin
+*.gguf
+*.ckpt
+checkpoints/
+models/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Logs / scratch
+logs/
+*.log
+*.tmp
+*.bak
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
