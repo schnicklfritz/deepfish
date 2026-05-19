@@ -22,36 +22,36 @@ case "$cmd" in
     echo "[sync] pulling weights..."
     mkdir -p "$WORKSPACE/checkpoints/s2-pro"
     b2 sync "b2://$B2_BUCKET/deepfish/checkpoints/s2-pro/" \
-            "$WORKSPACE/checkpoints/s2-pro/" --noProgress
+            "$WORKSPACE/checkpoints/s2-pro/" --no-progress
     echo "[sync] pulling references..."
     mkdir -p "$WORKSPACE/references"
     b2 sync "b2://$B2_BUCKET/deepfish/references/" \
-            "$WORKSPACE/references/" --noProgress || true
+            "$WORKSPACE/references/" --no-progress || true
     echo "[sync] pulling torch.compile cache (sm_$GPU_ARCH)..."
     mkdir -p "$CACHE_DIR"
     b2 sync "b2://$B2_BUCKET/deepfish/torch_cache/sm_$GPU_ARCH/" \
-            "$CACHE_DIR/" --noProgress || true
+            "$CACHE_DIR/" --no-progress || true
     ;;
   push-weights)
     echo "[sync] pushing weights..."
     b2 sync "$WORKSPACE/checkpoints/s2-pro/" \
-            "b2://$B2_BUCKET/deepfish/checkpoints/s2-pro/" --noProgress
+            "b2://$B2_BUCKET/deepfish/checkpoints/s2-pro/" --no-progress
     ;;
   push-references)
     echo "[sync] pushing references..."
     b2 sync "$WORKSPACE/references/" \
-            "b2://$B2_BUCKET/deepfish/references/" --noProgress
+            "b2://$B2_BUCKET/deepfish/references/" --no-progress
     ;;
   push-outputs)
     echo "[sync] pushing outputs..."
     b2 sync "$WORKSPACE/outputs/" \
-            "b2://$B2_BUCKET/deepfish/outputs/" --noProgress
+            "b2://$B2_BUCKET/deepfish/outputs/" --no-progress
     ;;
   push-cache)
     echo "[sync] pushing torch.compile cache (sm_$GPU_ARCH)..."
     if [ -d "$CACHE_DIR" ] && [ -n "$(ls -A $CACHE_DIR 2>/dev/null)" ]; then
       b2 sync "$CACHE_DIR/" \
-              "b2://$B2_BUCKET/deepfish/torch_cache/sm_$GPU_ARCH/" --noProgress
+              "b2://$B2_BUCKET/deepfish/torch_cache/sm_$GPU_ARCH/" --no-progress
     else
       echo "[sync] cache dir empty or missing, skipping"
     fi
