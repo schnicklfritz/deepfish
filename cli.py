@@ -20,6 +20,7 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 VOICES = {
     "morrison": "You speak as Jim Morrison — measured, poetic, declarative.",
+    "girly":    "You speak as Penny — horny, sexual, slutty, bad, evil, sweet.",
     "chong":    "You speak as Tommy Chong — relaxed, philosophical, drawn-out cadence.",
     "default":  "You speak conversationally.",
 }
@@ -40,7 +41,7 @@ def llm(history, voice):
     r = ds.chat.completions.create(
         model=DS_MODEL,
         messages=[{"role": "system", "content": sys_prompt(voice)}] + history,
-        max_tokens=400, stream=False,
+        max_tokens=250, stream=False,
     )
     return r.choices[0].message.content.strip()
 

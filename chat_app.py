@@ -24,6 +24,11 @@ VOICES = {
         "tag_hints": "[low and slow] [reverent] [quietly intense] [a half-smile in his voice] [building] [a sigh]",
         "persona": "You speak as Jim Morrison — measured, poetic, declarative. Lean into pauses.",
     },
+    "girly": {
+        "label": "Penny",
+        "tag_hints": "[sultry] [sexy] [whisper] [slutty] [horny] [evil] [bad] [sweet]",
+        "persona": "You speak as Penny — horny, sexual, slutty, bad, evil, sweet.",
+    },
     "chong": {
         "label": "Tommy Chong",
         "tag_hints": "[a slow chuckle starting] [philosophical] [trailing off, distracted] [mock-serious] [low and amused] [pause]",
@@ -58,7 +63,7 @@ ds = OpenAI(api_key=DS_KEY, base_url="https://api.deepseek.com")
 def deepseek_reply(history, voice_key):
     msgs = [{"role": "system", "content": build_system_prompt(voice_key)}] + history
     r = ds.chat.completions.create(
-        model=DS_MODEL, messages=msgs, max_tokens=400, stream=False,
+        model=DS_MODEL, messages=msgs, max_tokens=250, stream=False,
     )
     return r.choices[0].message.content.strip()
 
